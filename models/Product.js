@@ -47,6 +47,15 @@ const productSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  sizes: {
+    type: [String],
+    default: [],
+  },
+  sizeType: {
+    type: String,
+    enum: ['', 'pointure', 'taille'],
+    default: '',
+  },
   featured: {
     type: Boolean,
     default: false,

@@ -94,6 +94,8 @@ const products = [
     discount: 18,
     image: "https://images.unsplash.com/photo-1603487742131-4160ec999306?w=800&q=80",
     description: "Sandales artisanales en cuir de chèvre tanné naturel. Semelle confort. Fabriquées au Cameroun.",
+    sizeType: "pointure",
+    sizes: ['38', '39', '40', '41', '42', '43', '44', '45'],
     featured: true,
   },
   {
@@ -107,6 +109,8 @@ const products = [
     discount: 13,
     image: "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
     description: "Baskets urbaines avec empiècements wax africain. Semelle en caoutchouc naturel. Unisexe.",
+    sizeType: "pointure",
+    sizes: ['38', '39', '40', '41', '42', '43', '44', '45'],
     featured: true,
   },
   {
@@ -120,6 +124,8 @@ const products = [
     discount: 15,
     image: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=800&q=80",
     description: "Escarpins en cuir véritable avec détails wax. Talon 8cm confort. Intérieur cuir.",
+    sizeType: "pointure",
+    sizes: ['36', '37', '38', '39', '40', '41', '42'],
     featured: true,
   },
   {
