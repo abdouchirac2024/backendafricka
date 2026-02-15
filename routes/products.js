@@ -4,6 +4,16 @@ const protect = require('../middleware/auth');
 
 const router = express.Router();
 
+// Synchronise image et images pour compatibilité
+const normalizeImages = (body) => {
+  if (Array.isArray(body.images) && body.images.length > 0) {
+    body.image = body.images[0];
+  } else if (body.image && (!body.images || body.images.length === 0)) {
+    body.images = [body.image];
+  }
+  return body;
+};
+
 // GET /api/products - public (pagination + filtres + recherche)
 router.get('/', async (req, res) => {
   try {
@@ -42,12 +52,20 @@ router.get('/', async (req, res) => {
     const sort = sortMap[req.query.sort] || { createdAt: -1 };
 
     const [products, total] = await Promise.all([
-      Product.find(filter).sort(sort).skip((page - 1) * limit).limit(limit),
+      Product.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
       Product.countDocuments(filter),
     ]);
 
+    // Normaliser images pour chaque produit retourné
+    const normalized = products.map((p) => {
+      if ((!p.images || p.images.length === 0) && p.image) {
+        p.images = [p.image];
+      }
+      return p;
+    });
+
     res.json({
-      products,
+      products: normalized,
       total,
       page,
       pages: Math.ceil(total / limit),
@@ -60,9 +78,13 @@ router.get('/', async (req, res) => {
 // GET /api/products/:id - public
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).lean();
     if (!product) {
       return res.status(404).json({ message: 'Produit introuvable' });
+    }
+    // Normaliser images
+    if ((!product.images || product.images.length === 0) && product.image) {
+      product.images = [product.image];
     }
     res.json(product);
   } catch (error) {
@@ -76,7 +98,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/products - protégé
 router.post('/', protect, async (req, res) => {
   try {
-    const product = await Product.create(req.body);
+    const product = await Product.create(normalizeImages(req.body));
     res.status(201).json(product);
   } catch (error) {
     res.status(400).json({ message: 'Données invalides', error: error.message });
@@ -86,7 +108,7 @@ router.post('/', protect, async (req, res) => {
 // PUT /api/products/:id - protégé
 router.put('/:id', protect, async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    const product = await Product.findByIdAndUpdate(req.params.id, normalizeImages(req.body), {
       new: true,
       runValidators: true,
     });
