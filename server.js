@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
+const slideRoutes = require('./routes/slides');
 
 const Product = require('./models/Product');
 
@@ -30,6 +31,7 @@ app.use(express.json({ limit: '50mb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/slides', slideRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API Login App' });
