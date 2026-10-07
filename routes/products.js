@@ -4,15 +4,49 @@ const protect = require('../middleware/auth');
 
 const router = express.Router();
 
-// Synchronise image et images pour compatibilité
-const normalizeImages = (body) => {
-  if (Array.isArray(body.images) && body.images.length > 0) {
-    body.image = body.images[0];
-  } else if (body.image && (!body.images || body.images.length === 0)) {
-    body.images = [body.image];
-  }
-  return body;
+const MAX_PAYLOAD_BYTES = 14 * 1024 * 1024; // limite MongoDB : 16 Mo par document
+
+const toNumOrNull = (v) => {
+  const n = Number(v);
+  return v === null || v === undefined || v === '' || Number.isNaN(n) || n === 0 ? null : n;
 };
+
+// Ne garde que les champs connus, convertit les types et synchronise image/images
+const sanitizeProduct = (body = {}) => {
+  const out = {};
+  ['name', 'category', 'categorySlug', 'subcategory', 'subcategorySlug', 'description'].forEach((k) => {
+    if (body[k] !== undefined && body[k] !== null) out[k] = String(body[k]);
+  });
+  if (body.price !== undefined) out.price = Number(body.price);
+  if (body.oldPrice !== undefined) out.oldPrice = toNumOrNull(body.oldPrice);
+  if (body.discount !== undefined) out.discount = toNumOrNull(body.discount);
+  if (body.featured !== undefined) out.featured = Boolean(body.featured);
+  if (body.sizeType !== undefined) out.sizeType = ['pointure', 'taille'].includes(body.sizeType) ? body.sizeType : '';
+  if (Array.isArray(body.sizes)) out.sizes = body.sizes.map(String).filter(Boolean);
+
+  let images = Array.isArray(body.images) ? body.images.filter((i) => typeof i === 'string' && i) : null;
+  if ((!images || images.length === 0) && typeof body.image === 'string' && body.image) images = [body.image];
+  if (images) {
+    out.images = images;
+    out.image = images[0] || '';
+  }
+  return out;
+};
+
+// Message lisible pour l'utilisateur
+const explain = (error, fallback) => {
+  if (error.name === 'ValidationError') {
+    return Object.values(error.errors).map((e) => e.message).join(', ');
+  }
+  if (error.name === 'CastError') return `Valeur invalide pour « ${error.path} »`;
+  if (/larger than the maximum|too large|BSON/i.test(error.message)) {
+    return 'Images trop volumineuses : supprimez-en ou utilisez des liens (URL)';
+  }
+  return `${fallback} (${error.message})`;
+};
+
+const tooBig = (data) =>
+  Buffer.byteLength(JSON.stringify(data.images || [])) > MAX_PAYLOAD_BYTES;
 
 // GET /api/products - public (pagination + filtres + recherche)
 router.get('/', async (req, res) => {
@@ -98,17 +132,22 @@ router.get('/:id', async (req, res) => {
 // POST /api/products - protégé
 router.post('/', protect, async (req, res) => {
   try {
-    const product = await Product.create(normalizeImages(req.body));
+    const data = sanitizeProduct(req.body);
+    if (tooBig(data)) return res.status(413).json({ message: 'Images trop volumineuses : supprimez-en ou utilisez des liens (URL)' });
+    const product = await Product.create(data);
     res.status(201).json(product);
   } catch (error) {
-    res.status(400).json({ message: 'Données invalides', error: error.message });
+    console.error('POST /products', error);
+    res.status(400).json({ message: explain(error, 'Données invalides'), error: error.message });
   }
 });
 
 // PUT /api/products/:id - protégé
 router.put('/:id', protect, async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, normalizeImages(req.body), {
+    const data = sanitizeProduct(req.body);
+    if (tooBig(data)) return res.status(413).json({ message: 'Images trop volumineuses : supprimez-en ou utilisez des liens (URL)' });
+    const product = await Product.findByIdAndUpdate(req.params.id, data, {
       new: true,
       runValidators: true,
     });
@@ -117,7 +156,8 @@ router.put('/:id', protect, async (req, res) => {
     }
     res.json(product);
   } catch (error) {
-    res.status(400).json({ message: 'Erreur de mise à jour', error: error.message });
+    console.error('PUT /products/:id', error);
+    res.status(400).json({ message: explain(error, 'Erreur de mise à jour'), error: error.message });
   }
 });
 
